@@ -4,7 +4,7 @@ on:
   push:
     branches: [ main ]
   schedule:
-    - cron: '0 */2 * * *'  # Run every 2 hours
+    - cron: '0 */3 * * *'  # Run every 3 hours
 
 jobs:
   update-playlist:
@@ -12,25 +12,40 @@ jobs:
     
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v3
-      
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.9'
+        python-version: '3.10'
         
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -r requirements.txt
+        pip install requests beautifulsoup4 urllib3 lxml
         
+    - name: Create playlist directory
+      run: mkdir -p playlists
+      
     - name: Run JagoBD playlist generator
       run: python generate_playlist.py
       
-    - name: Commit and push if changed
+    - name: Configure Git
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
+        
+    - name: Commit and push changes
+      run: |
         git add playlist.m3u
-        git diff --quiet && git diff --staged --quiet || git commit -m "Auto-update JagoBD playlist - $(date +'%Y-%m-%d %H:%M')"
-        git push
+        git diff --quiet && git_diff_staged=$(git diff --staged --quiet) && exit 0 || exit 1
+        if [ $? -ne 0 ]; then
+          git commit -m "Auto-update playlist - $(date +'%Y-%m-%d %H:%M:%S')"
+          git push
+        else
+          echo "No changes to commit"
+        fi
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
